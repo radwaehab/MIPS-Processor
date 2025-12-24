@@ -12,7 +12,7 @@ reg [31:0] d_mem [0:63];   // 64x32 data memory
 
 always @(posedge clk)
   begin
-    if(memw && ~memr)    d_mem[address] <= datain;
-    else                 dataout <= d_mem[address];
+    if     (memw)    d_mem[address] <= datain;
+    if else(memr)    dataout <= d_mem[address];
   end
 endmodule
