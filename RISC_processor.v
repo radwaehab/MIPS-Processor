@@ -1,4 +1,4 @@
-module RISC_processor
+module MIPS_processor
 (
 
     input clk,
@@ -6,21 +6,21 @@ module RISC_processor
 );
 
 // ===== Wires =====
-wire [31:0] PC, Next_PC, PC_plus_4;
-wire [15:0] instruction;
-wire [2:0] rs, rt, rd;
-wire [3:0] funct, opcode;
-wire [31:0] reg_data1, reg_data2, immediate_extended;
+wire [31:0] PC, Next_PC, PC_plus_4 ,four;                             // all for pc part
+wire [31:0] instruction;
+wire [4:0]  rsA, rtA, write_reg;
+wire [5:0]  funct, opcode;
+wire [31:0] rsV, rtV, immediate_extended;
 wire [31:0] ALU_input2, ALU_result;
 wire [31:0] mem_data;
-wire [2:0] write_reg;
-wire [31:0] Reg_Write_Data;
+wire [4:0]  write_reg;                                                 //between mux and reg 
+wire [31:0] RegWrite_Data;
 wire Zero;
 
 // Control signals
-wire RegWrite, ALUSrc, MemToReg, MemRead, MemWrite, Branch, RegDst;
-wire [1:0] ALUOp;
-wire [3:0] ALU_Ctrl;
+wire RegWrite, mem_read, mem_write, mem_to_reg, alu_src, branch, jump, reg_dst;
+wire [1:0] alu_op;
+wire [3:0] ALUcontrol;
 
 // ===== PC =====
 PC pc_inst(
@@ -30,7 +30,13 @@ PC pc_inst(
     .out(PC)
 );
 
-assign PC_plus_4 = PC + 4;//??????????????????????????????
+assign four = 4;
+add  addpc(
+     .a(PC),
+     .b(four),
+     .sum(PC_plus_4)
+);
+//assign PC_plus_4 = PC + 4;//??????????????????????????????
 
 // ===== Instruction Memory =====
 instruction_MEM imem(
@@ -39,43 +45,60 @@ instruction_MEM imem(
 );
 
 // ===== Instruction Decode =====
-assign opcode = instruction[15:12];
-assign rs     = instruction[11:9];
-assign rt     = instruction[8:6];
-assign rd     = instruction[5:3];
-assign funct  = instruction[3:0];
-assign immediate_extended = {{29{instruction[2]}}, instruction[2:0]}; // sign-extend 3-bit immediate
+assign opcode = instruction[31:26];
+assign rs     = instruction[25:21];
+assign rt     = instruction[20:16];
+assign rd     = instruction[15:11];
+assign imm    = instruction[15:0];
+assign funct  = instruction[5:0];
+
+
 
 // ===== Control Unit =====
-main_control_unit main_ctrl(      /////no jump?????
-    .opcode(),
-    .reg_dst(opcode),
-    .jump(RegWrite),  //?????????????
-    .branch(ALUSrc),
-    .reg_write(MemToReg),
-    .mem_read(MemRead),
-    .mem_write(MemWrite),
-    .mem_to_reg(Branch),
-    .alu_op(RegDst),
-    .alu_src(ALUOp)
+main_control_unit main_ctrl(
+    .opcode(opcode),
+    .reg_dst(reg_dst),
+    .jump(jump), 
+    .branch(branch),
+    .RegWrite(RegWrite),
+    .mem_read(mem_read),
+    .mem_write(mem_write),
+    .mem_to_reg(mem_to_reg),
+    .alu_op(alu_op),
+    .alu_src(alu_src)
 );
 
-ALU_control alu_ctrl(
-    .alu_op(ALUOp),
+ALU_control ALUcontrol(
+    .alu_op(alu_op),
     .funct(funct),
-    .ALUcontrol(ALU_Ctrl)
+    .ALUcontrol(ALUcontrol)
 );
+
+// ======= write register mux======
+MUX2 regMux(
+    .sel(reg_dst),
+    .in0(rt),
+    .in1(rd),
+    .out(write_reg)
+);
+
 
 // ===== Register File =====
 Register_file reg_file(
     .clk(clk),
-    .RegWrite(RegWrite),
-    .rs(rs),
-    .rt(rt),
-    .rd(write_reg),
-    .Write_data(Reg_Write_Data),
-    .Read_data1(reg_data1),
-    .Read_data2(reg_data2)
+    .RegWrite(RegWrite),            // enable 
+    .rsA(rsA),
+    .rtA(rtA),
+    .write_reg(write_reg),          // the  address of destination reg (rd || rt)
+    .RegWrite_data(RegWrite_Data),
+    .rsV(rsV),
+    .rtV(rtV)
+);
+
+sign_extd se(
+    .extd(),//?????????????????????????????
+    .in(imm),
+    .out(immediate_extended)
 );
 
 // ===== ALU Input MUX =====
@@ -90,7 +113,7 @@ MUX2 #(32) alu_mux(
 ALU alu_inst(
     .A(reg_data1),
     .B(ALU_input2),
-    .ALUcontrol(ALU_Ctrl),
+    .ALUcontrol(ALUcontrol),
     .Result(ALU_result),
     .Zero(Zero)  /???????????????????
 );
@@ -110,7 +133,7 @@ MUX2 #(32) wb_mux(
     .in0(ALU_result),
     .in1(mem_data),
     .sel(MemToReg),
-    .out(Reg_Write_Data)
+    .out(RegWrite_Data)
 );
 
 // ===== Write Register MUX =====
