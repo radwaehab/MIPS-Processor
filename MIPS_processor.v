@@ -10,7 +10,7 @@ wire [31:0] PC, Next_PC, PC_plus_4 ,four;                             // all for
 wire [31:0] instruction;
 wire [4:0]  rsA, rtA, write_reg;
 wire [5:0]  funct, opcode;
-wire [31:0] rsV, rtV, immediate_extended;
+wire [31:0] rsV, rtV, immediate_extended, instr26 ;
 wire [31:0] ALU_input2, ALU_result;
 wire [31:0] mem_data;
 wire [4:0]  write_reg;                                                 //between mux and reg 
@@ -51,7 +51,7 @@ assign rt     = instruction[20:16];
 assign rd     = instruction[15:11];
 assign imm    = instruction[15:0];
 assign funct  = instruction[5:0];
-
+//assign immediate_extended = {{29{instruction[2]}}, instruction[2:0]}; // sign-extend 3-bit immediate
 
 
 // ===== Control Unit =====
@@ -75,7 +75,7 @@ ALU_control ALUcontrol(
 );
 
 // ======= write register mux======
-MUX2 regMux(
+mux regMux(
     .sel(reg_dst),
     .in0(rt),
     .in1(rd),
@@ -101,58 +101,67 @@ sign_extd se(
     .out(immediate_extended)
 );
 
-// ===== ALU Input MUX =====
-MUX2 #(32) alu_mux(
-    .in0(reg_data2),
+
+// ===== ALU =====
+
+mux aluMux(
+    .sel(alu_src),
+    .in0(rtV),
     .in1(immediate_extended),
-    .sel(ALUSrc),
     .out(ALU_input2)
 );
 
-// ===== ALU =====
 ALU alu_inst(
-    .A(reg_data1),
+    .A(rsV),
     .B(ALU_input2),
     .ALUcontrol(ALUcontrol),
     .Result(ALU_result),
-    .Zero(Zero)  /???????????????????
+    .Zero(Zero)
 );
 
 // ===== Data Memory =====
-DataMemory data_mem(
+data_MEM dmem(
     .clk(clk),
-    .memr(MemRead),
-    .memw(MemWrite),
+    .memr(mem_read),
+    .memw(mem_write),
     .address(ALU_result),
-    .datain(reg_data2),
+    .datain(rtV),
     .dataout(mem_data)
 );
 
 // ===== Write-Back MUX =====
-MUX2 #(32) wb_mux(
+mux #(32) wbMux(
+    .sel(mem_to_reg),
     .in0(ALU_result),
     .in1(mem_data),
-    .sel(MemToReg),
     .out(RegWrite_Data)
 );
 
-// ===== Write Register MUX =====
-MUX2 #(3) reg_dst_mux(
-    .in0(rt),
-    .in1(rd),
-    .sel(RegDst),
-    .out(write_reg)
+// ===== Branch/Next PC/jump =====
+wire [31:0] immshift, instr28, branch_addr, pcMux_result;
+//assign branch_addr = PC_plus_4 + (immediate_extended << 2);
+assign instr26 = instruction[25:0]
+assign immshift   = (immediate_extended << 2);
+assign instr28 = (instr26 << 2);
+
+add branch_add(
+    .a(PC_plus_4),
+    .b(immshift),
+    .sum(branch_addr)
 );
 
-// ===== Branch/Next PC =====
-wire [31:0] branch_addr;
-assign branch_addr = PC_plus_4 + (immediate_extended << 2);
-
-MUX2 #(32) pc_mux(
+mux #(32) pcMux(
+    .sel(Branch & Zero),
     .in0(PC_plus_4),
     .in1(branch_addr),
-    .sel(Branch & Zero),
-    .out(Next_PC)
+    .out(pcMux_result)
+);
 
+mux #(32) jMux(
+    .sel(jump),
+    .in0(pcMux_result),
+    .in1(jaddress),//????????????
+    .out(Next_PC)
+);
 
 endmodule
