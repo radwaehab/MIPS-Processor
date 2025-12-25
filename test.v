@@ -1,3 +1,0 @@
-module test(){
-    input test;
-}
