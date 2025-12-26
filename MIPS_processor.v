@@ -13,12 +13,11 @@ wire [5:0]  funct, opcode;
 wire [31:0] rsV, rtV, immediate_extended, instr26 ;
 wire [31:0] ALU_input2, ALU_result;
 wire [31:0] mem_data;
-wire [4:0]  write_reg;                                                 //between mux and reg 
 wire [31:0] RegWrite_Data;
 wire Zero;
 
 // Control signals
-wire RegWrite, mem_read, mem_write, mem_to_reg, alu_src, branch, jump, reg_dst;
+wire RegWrite, mem_read, mem_write, mem_to_reg, alu_src, branch, jump, reg_dst, extd;
 wire [1:0] alu_op;
 wire [3:0] ALUcontrol;
 
@@ -65,10 +64,11 @@ main_control_unit main_ctrl(
     .mem_write(mem_write),
     .mem_to_reg(mem_to_reg),
     .alu_op(alu_op),
-    .alu_src(alu_src)
+    .alu_src(alu_src),
+    .extd(extd)
 );
 
-ALU_control ALUcontrol(
+ALU_control ALUctrl(
     .alu_op(alu_op),
     .funct(funct),
     .ALUcontrol(ALUcontrol)
@@ -96,7 +96,7 @@ Register_file reg_file(
 );
 
 sign_extd se(
-    .extd(),//?????????????????????????????
+    .extd(extd),
     .in(imm),
     .out(immediate_extended)
 );
@@ -138,11 +138,11 @@ mux #(32) wbMux(
 );
 
 // ===== Branch/Next PC/jump =====
-wire [31:0] immshift, instr28, branch_addr, pcMux_result;
-//assign branch_addr = PC_plus_4 + (immediate_extended << 2);
-assign instr26 = instruction[25:0]
+wire [31:0] immshift, branch_addr, pcMux_result, jaddress;
+
 assign immshift   = (immediate_extended << 2);
 assign instr28 = (instr26 << 2);
+assign jaddress= {PC_plus_4[31:28], instruction[25:0], 2'b00};
 
 add branch_add(
     .a(PC_plus_4),
@@ -160,7 +160,7 @@ mux #(32) pcMux(
 mux #(32) jMux(
     .sel(jump),
     .in0(pcMux_result),
-    .in1(jaddress),//????????????
+    .in1(jaddress),
     .out(Next_PC)
 );
 
