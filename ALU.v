@@ -4,7 +4,7 @@ module ALU (
     input  wire [3:0]  ALUcontrol,
 
     output reg  [31:0] Result,
-    output wire Zero,
+    output wire Zero
     //output wire Negative,
    // output wire Carry,
    // output wire Overflow
@@ -13,11 +13,11 @@ module ALU (
     always @(*)
     begin
         case (ALUcontrol)
-            3'b0010: Result = A + B;
-            3'b0110: Result = A - B;
-            3'b0000: Result = A & B;
-            3'b0001: Result = A | B;
-        //  3'b100: Result = ($signed(A) < $signed(B)) ? 32'd1 : 32'd0;
+            4'b0010: Result = A + B;
+            4'b0110: Result = A - B;
+            4'b0000: Result = A & B;
+            4'b0001: Result = A | B;
+        //  4'b100: Result = ($signed(A) < $signed(B)) ? 32'd1 : 32'd0;
             default: Result = 32'd0;
         endcase
     end
